@@ -1,0 +1,8 @@
+
+/Temp
+/Library
+/.vscode
+*.meta
+/Logs
+/UserSettings
+/Assets/SceneDependencyCache

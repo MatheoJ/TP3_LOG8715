@@ -46,7 +46,7 @@ public class CircleGhost : NetworkBehaviour
         {
             m_MovingCircle.simulatedPosition = transform.position;
             m_MovingCircle.simulatedVelocity = storedVelocity;
-            timeLeftToSimulate = m_GameState.CurrentRTT;
+            timeLeftToSimulate = m_GameState.CurrentRTT * 2;
             GameWasStunnedLastFrame = false;
             return;
         }

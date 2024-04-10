@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.UIElements;
+using static Player;
 
 public class Player : NetworkBehaviour
 {
@@ -12,6 +14,8 @@ public class Player : NetworkBehaviour
     private float m_Size = 1;
 
     private GameState m_GameState;
+
+    
 
    
 
@@ -49,11 +53,29 @@ public class Player : NetworkBehaviour
 
     private Queue<Vector2> m_InputQueue = new Queue<Vector2>();
     private Queue<uint> m_FrameCountQueue = new Queue<uint>();
+    private Queue<bool> m_SpacePressedQueue = new Queue<bool>();
+
+    private bool m_spaceHasBeeenPressed = false;
+
+    private int frameStuntedNumber = 0;
 
     private void Awake()
     {
         m_GameState = FindObjectOfType<GameState>();
     }
+
+    private void Update()
+    {
+        // Seuls les clients peuvent envoyer des inputs.
+        if (IsClient)
+        {
+            if (Input.GetKeyDown(KeyCode.Space))
+            {
+               m_spaceHasBeeenPressed = true;
+            }
+        }
+    }
+
 
     private void FixedUpdate()
     {
@@ -66,36 +88,6 @@ public class Player : NetworkBehaviour
             ClientFrameNumber++;            
         }
 
-        if (GameState.IsStunned)
-        {
-
-            Debug.Log("Stunned");
-           /*    if (IsOwner)
-                    {
-                        inputHistory newInput = new inputHistory();
-                        newInput.input = Vector2.zero;
-                        if (m_InputHistory.Count > 0)
-                        {
-                            newInput.position = m_InputHistory.Last.Value.position;
-                        }
-                        else
-                        {
-                            newInput.position = m_Position.Value;
-                        }
-                        newInput.timestamp = (uint) ClientFrameNumber;
-                        SendClientFrameServerRpc(ClientFrameNumber);
-                    }*/
-
-            bool needCorrection = NeedCorrection();
-            if (needCorrection)
-            {
-                Debug.Log("Correction needed");
-                CorrectPositionPlayer();
-            }
-
-            return;
-        }
-
         // Seul le serveur met à jour la position de l'entite.
         if (IsServer)
         {
@@ -105,6 +97,7 @@ public class Player : NetworkBehaviour
         // Seul le client qui possede cette entite peut envoyer ses inputs. 
         if (IsClient && IsOwner)
         {
+            UpdateStuntInfo();
 
             UpdateInputClient();
 
@@ -114,6 +107,8 @@ public class Player : NetworkBehaviour
                 Debug.Log("Correction needed");
                 CorrectPositionPlayer();                
             }
+
+            frameStuntedNumber--;
         }
     }
 
@@ -124,11 +119,25 @@ public class Player : NetworkBehaviour
         {
             var input = m_InputQueue.Dequeue();
             uint frame = m_FrameCountQueue.Dequeue();
+            bool spacePressed = m_SpacePressedQueue.Dequeue();
 
             if (frame > ServerFrameNumber.Value)
             {
                 ServerFrameNumber.Value = frame;
             }
+
+            if (spacePressed)
+            {
+                GameState.Stun();
+            }            
+
+            if (GameState.IsStunned)
+            {
+
+                Debug.Log("Frame: " + ServerFrameNumber.Value + "position: " + m_Position.Value + "Stnned -------------------------------------------");
+                return;
+            }   
+
             m_Position.Value += input * m_Velocity * Time.fixedDeltaTime;
 
             // Gestion des collisions avec l'exterieur de la zone de simulation
@@ -150,9 +159,8 @@ public class Player : NetworkBehaviour
             {
                 m_Position.Value = new Vector2(m_Position.Value.x, -size.y + m_Size);
             }
-        }
-
-        Debug.Log("Frame: " + ServerFrameNumber.Value + "position: " + m_Position.Value);
+            Debug.Log("Frame: " + ServerFrameNumber.Value + "position: " + m_Position.Value);
+        }        
     }
 
     private void UpdateInputClient()
@@ -174,23 +182,22 @@ public class Player : NetworkBehaviour
         {
             inputDirection += Vector2.right;
         }
+        if (m_spaceHasBeeenPressed)
+        {
+            GameState.ClientStun();
+        }
+        if (GameState.ClientIsStunned || m_spaceHasBeeenPressed || frameStuntedNumber>0)
+        {
+            inputDirection = Vector2.zero;
+            Debug.Log("Stunned========================= frame: " + ClientFrameNumber);
+        }
+
         SendInputServerRpc(inputDirection.normalized);
-        SendClientFrameServerRpc(ClientFrameNumber);
+        SendClientFrameServerRpc(ClientFrameNumber);        
+        SendSpacePressedServerRpc(m_spaceHasBeeenPressed);
+        m_spaceHasBeeenPressed = false;
 
-
-
-        inputHistory newInput = new inputHistory();
-        newInput.input = inputDirection.normalized;
-        if (m_InputHistory.Count > 0)
-        {
-            newInput.position = SimulateMovement(m_InputHistory.Last.Value.position, inputDirection.normalized);
-        }
-        else
-        {
-            newInput.position = m_Position.Value;
-        }
-        newInput.timestamp = ClientFrameNumber;
-        m_InputHistory.AddLast(newInput);
+        AddInputToHistory(inputDirection);
     }
 
 
@@ -207,8 +214,15 @@ public class Player : NetworkBehaviour
         m_FrameCountQueue.Enqueue(frameNumber);
     }
 
-    private Vector2 SimulateMovement(Vector2 position, Vector2 input)
+    [ServerRpc]
+    public void SendSpacePressedServerRpc(bool spacePressed)
     {
+        m_SpacePressedQueue.Enqueue(spacePressed);
+    }
+
+
+    private Vector2 SimulateMovement(Vector2 position, Vector2 input)
+    {  
         Vector2 newPosition = position + input * m_Velocity * Time.fixedDeltaTime;
 
         var size = GameState.GameSize;
@@ -234,13 +248,6 @@ public class Player : NetworkBehaviour
 
     private bool NeedCorrection()
     {
-
-
-        if (m_InputHistory.Count <= 1)
-        {
-            return false;
-        }
-
         while (m_InputHistory.Count > 1 && m_InputHistory.First.Value.timestamp < ServerFrameNumber.Value)
         {
             m_InputHistory.RemoveFirst();
@@ -256,17 +263,23 @@ public class Player : NetworkBehaviour
         Vector2 predictedPosition = inputAtThatTime.position;
         Vector2 difference = m_Position.Value - predictedPosition;
 
+        if (difference.magnitude > -0.1)
+        {
+            Debug.Log("FrameOfInput: " + inputAtThatTime.timestamp + "Difference: " + difference.magnitude + "PredictedPosition: " + predictedPosition + "RealPosition: " + m_Position.Value);
+        }   
 
-        Debug.Log("FrameOfInput: " + inputAtThatTime.timestamp);
-        Debug.Log("FrameOfServer: " + (ServerFrameNumber.Value));
-        Debug.Log("Difference: " + difference.magnitude);
-
-        return difference.magnitude > 1.0;
+        return difference.magnitude > 0.1;
     }
 
     private void CorrectPositionPlayer()
     {
         LinkedList<inputHistory> correctedInputHistory = new LinkedList<inputHistory>();
+        int numberOfFrameStunted = 0;
+        if (GameState.StuntHasBegan)
+        {
+            numberOfFrameStunted = (int) (GameState.StunDuration / Time.fixedDeltaTime);
+        }
+
         foreach (inputHistory input in m_InputHistory)
         {
             inputHistory newInput = new inputHistory();
@@ -277,17 +290,67 @@ public class Player : NetworkBehaviour
             }
             else
             {
-                newInput.position = SimulateMovement(correctedInputHistory.Last.Value.position, input.input);
+                if (numberOfFrameStunted>0)
+                {
+                    newInput.position = correctedInputHistory.Last.Value.position;
+                }
+                else
+                {
+                    newInput.position = SimulateMovement(correctedInputHistory.Last.Value.position, input.input);
+                }
             }
             newInput.timestamp = input.timestamp;
             newInput.input = input.input;
             correctedInputHistory.AddLast(newInput);
+
+            numberOfFrameStunted--;
+            
+            Debug.Log("Corrected position: " + newInput.position);
         }
 
         m_InputHistory = correctedInputHistory;
+
+        if (numberOfFrameStunted > 0)
+        {
+            frameStuntedNumber = numberOfFrameStunted;
+        }
     }
-    
+
+    private void AddInputToHistory(Vector2 inputDirection)
+    {
+        inputHistory newInput = new inputHistory();
+        newInput.input = inputDirection.normalized;
+        if (m_InputHistory.Count > 0)
+        {
+            if (!GameState.ClientIsStunned)
+            {
+                newInput.position = SimulateMovement(m_InputHistory.Last.Value.position, inputDirection.normalized);
+            }
+            else
+            {
+                newInput.position = m_InputHistory.Last.Value.position;
+            }
+        }
+        else
+        {
+            newInput.position = m_Position.Value;
+        }
+        newInput.timestamp = ClientFrameNumber;
+        m_InputHistory.AddLast(newInput);
 
 
+    }
 
+    public void UpdateStuntInfo()
+    {
+        if (GameState.IsStunned != GameState.LastUpdateIsStunned && GameState.IsStunned)
+        {
+            GameState.StuntHasBegan = true;
+        }
+        else
+        {
+            GameState.StuntHasBegan = false;
+        }
+        GameState.LastUpdateIsStunned = GameState.IsStunned;        
+    }
 }

@@ -13,10 +13,12 @@ public class StunInputManager : NetworkBehaviour
         // Seuls les clients peuvent envoyer des inputs.
         if (IsClient)
         {
-            if (Input.GetKeyDown(KeyCode.Space))
+            
+/*            if (Input.GetKeyDown(KeyCode.Space))
             {
                 ActivateStunServerRpc();
-            }
+                m_GameState.ClientStun();
+            }*/
         }
     }
 

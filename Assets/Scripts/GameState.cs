@@ -13,6 +13,8 @@ public class GameState : NetworkBehaviour
     [SerializeField]
     private float m_StunDuration = 1.0f;
 
+    public float StunDuration { get => m_StunDuration; }
+
     [SerializeField]
     private Vector2 m_GameSize;
 
@@ -22,6 +24,13 @@ public class GameState : NetworkBehaviour
 
     public bool IsStunned { get => m_IsStunned.Value; }
 
+
+    public bool ClientIsStunned = false;    
+
+    public bool LastUpdateIsStunned = false;
+    public bool StuntHasBegan = false;
+
+   
     private Coroutine m_StunCoroutine;
 
     private float m_CurrentRtt;
@@ -84,5 +93,25 @@ public class GameState : NetworkBehaviour
         m_IsStunned.Value = true;
         yield return new WaitForSeconds(m_StunDuration);
         m_IsStunned.Value = false;
+    }
+
+    public void ClientStun() {
+        
+        if (m_StunCoroutine != null)
+        {
+            StopCoroutine(m_StunCoroutine);
+        }
+        if (IsClient)
+        {
+            m_StunCoroutine = StartCoroutine(ClientStunCoroutine());
+        }
+    }
+
+    private IEnumerator ClientStunCoroutine()
+    {
+
+        ClientIsStunned = true;
+        yield return new WaitForSeconds(m_StunDuration);
+        ClientIsStunned = false;
     }
 }

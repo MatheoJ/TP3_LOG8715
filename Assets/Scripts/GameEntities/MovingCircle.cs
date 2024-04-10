@@ -20,6 +20,9 @@ public class MovingCircle : NetworkBehaviour
 
     private GameState m_GameState;
 
+    public Vector2 simulatedPosition;
+    public Vector2 simulatedVelocity;
+
     private void Awake()
     {
         m_GameState = FindObjectOfType<GameState>();
@@ -36,15 +39,14 @@ public class MovingCircle : NetworkBehaviour
 
     private void FixedUpdate()
     {
-        // Si le stun est active, rien n'est mis a jour.
-        if (m_GameState.IsStunned)
-        {
-            return;
-        }
-
         // Seul le serveur peut mettre a jour la position et la vitesse des cercles.
         if (IsServer)
         {
+            if (m_GameState.IsStunned)
+            {
+                return;
+            }
+
             // Mise a jour de la position du cercle selon sa vitesse
             m_Position.Value += m_Velocity.Value * Time.deltaTime;
 
@@ -70,6 +72,31 @@ public class MovingCircle : NetworkBehaviour
             {
                 m_Position.Value = new Vector2(m_Position.Value.x, -size.y + m_Radius);
                 m_Velocity.Value *= new Vector2(1, -1);
+            }
+        }
+        else if (IsClient)
+        {
+            simulatedPosition += simulatedVelocity * Time.deltaTime;
+            var size = m_GameState.GameSize;
+            if (simulatedPosition.x - m_Radius < -size.x)
+            {
+                simulatedPosition = new Vector2(-size.x + m_Radius, simulatedPosition.y);
+                simulatedVelocity *= new Vector2(-1, 1);
+            }
+            else if (simulatedPosition.x + m_Radius > size.x)
+            {
+                simulatedPosition = new Vector2(size.x - m_Radius, simulatedPosition.y);
+                simulatedVelocity *= new Vector2(-1, 1);
+            }
+            if (simulatedPosition.y + m_Radius > size.y)
+            {
+                simulatedPosition = new Vector2(simulatedPosition.x, size.y - m_Radius);
+                simulatedVelocity *= new Vector2(1, -1);
+            }
+            else if (simulatedPosition.y - m_Radius < -size.y)
+            {
+                simulatedPosition = new Vector2(simulatedPosition.x, -size.y + m_Radius);
+                simulatedVelocity *= new Vector2(1, -1);
             }
         }
     }

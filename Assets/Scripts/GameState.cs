@@ -28,7 +28,7 @@ public class GameState : NetworkBehaviour
     public bool ClientIsStunned = false;    
 
     public bool LastUpdateIsStunned = false;
-    public bool StuntHasBegan = false;
+    public bool StunHasBegan = false;
 
    
     private Coroutine m_StunCoroutine;

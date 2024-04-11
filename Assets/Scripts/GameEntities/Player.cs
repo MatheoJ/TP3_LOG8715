@@ -57,7 +57,7 @@ public class Player : NetworkBehaviour
 
     private bool m_spaceHasBeeenPressed = false;
 
-    private int frameStuntedNumber = 0;
+    private int frameStunnedNumber = 0;
 
     private void Awake()
     {
@@ -97,7 +97,7 @@ public class Player : NetworkBehaviour
         // Seul le client qui possede cette entite peut envoyer ses inputs. 
         if (IsClient && IsOwner)
         {
-            UpdateStuntInfo();
+            UpdateStunInfo();
 
             UpdateInputClient();
 
@@ -108,7 +108,7 @@ public class Player : NetworkBehaviour
                 CorrectPositionPlayer();                
             }
 
-            frameStuntedNumber--;
+            frameStunnedNumber--;
         }
     }
 
@@ -186,7 +186,7 @@ public class Player : NetworkBehaviour
         {
             GameState.ClientStun();
         }
-        if (GameState.ClientIsStunned || m_spaceHasBeeenPressed || frameStuntedNumber>0)
+        if (GameState.ClientIsStunned || m_spaceHasBeeenPressed || frameStunnedNumber>0)
         {
             inputDirection = Vector2.zero;
             Debug.Log("Stunned========================= frame: " + ClientFrameNumber);
@@ -274,10 +274,10 @@ public class Player : NetworkBehaviour
     private void CorrectPositionPlayer()
     {
         LinkedList<inputHistory> correctedInputHistory = new LinkedList<inputHistory>();
-        int numberOfFrameStunted = 0;
-        if (GameState.StuntHasBegan)
+        int numberOfFrameStunned = 0;
+        if (GameState.StunHasBegan)
         {
-            numberOfFrameStunted = (int) (GameState.StunDuration / Time.fixedDeltaTime);
+            numberOfFrameStunned = (int) (GameState.StunDuration / Time.fixedDeltaTime);
         }
 
         foreach (inputHistory input in m_InputHistory)
@@ -290,7 +290,7 @@ public class Player : NetworkBehaviour
             }
             else
             {
-                if (numberOfFrameStunted>0)
+                if (numberOfFrameStunned>0)
                 {
                     newInput.position = correctedInputHistory.Last.Value.position;
                 }
@@ -303,16 +303,16 @@ public class Player : NetworkBehaviour
             newInput.input = input.input;
             correctedInputHistory.AddLast(newInput);
 
-            numberOfFrameStunted--;
+            numberOfFrameStunned--;
             
             Debug.Log("Corrected position: " + newInput.position);
         }
 
         m_InputHistory = correctedInputHistory;
 
-        if (numberOfFrameStunted > 0)
+        if (numberOfFrameStunned > 0)
         {
-            frameStuntedNumber = numberOfFrameStunted;
+            frameStunnedNumber = numberOfFrameStunned;
         }
     }
 
@@ -341,15 +341,15 @@ public class Player : NetworkBehaviour
 
     }
 
-    public void UpdateStuntInfo()
+    public void UpdateStunInfo()
     {
         if (GameState.IsStunned != GameState.LastUpdateIsStunned && GameState.IsStunned)
         {
-            GameState.StuntHasBegan = true;
+            GameState.StunHasBegan = true;
         }
         else
         {
-            GameState.StuntHasBegan = false;
+            GameState.StunHasBegan = false;
         }
         GameState.LastUpdateIsStunned = GameState.IsStunned;        
     }

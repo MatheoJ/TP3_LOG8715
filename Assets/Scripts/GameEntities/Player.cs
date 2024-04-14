@@ -104,7 +104,6 @@ public class Player : NetworkBehaviour
             bool needCorrection = NeedCorrection();
             if (needCorrection)
             {
-                Debug.Log("Correction needed");
                 CorrectPositionPlayer();                
             }
 
@@ -133,8 +132,6 @@ public class Player : NetworkBehaviour
 
             if (GameState.IsStunned)
             {
-
-                Debug.Log("Frame: " + ServerFrameNumber.Value + "position: " + m_Position.Value + "Stnned -------------------------------------------");
                 return;
             }   
 
@@ -159,7 +156,6 @@ public class Player : NetworkBehaviour
             {
                 m_Position.Value = new Vector2(m_Position.Value.x, -size.y + m_Size);
             }
-            Debug.Log("Frame: " + ServerFrameNumber.Value + "position: " + m_Position.Value);
         }        
     }
 
@@ -189,7 +185,6 @@ public class Player : NetworkBehaviour
         if (GameState.ClientIsStunned || m_spaceHasBeeenPressed || frameStunnedNumber>0)
         {
             inputDirection = Vector2.zero;
-            Debug.Log("Stunned========================= frame: " + ClientFrameNumber);
         }
 
         SendInputServerRpc(inputDirection.normalized);
@@ -261,12 +256,7 @@ public class Player : NetworkBehaviour
 
         inputHistory inputAtThatTime = m_InputHistory.First.Value;
         Vector2 predictedPosition = inputAtThatTime.position;
-        Vector2 difference = m_Position.Value - predictedPosition;
-
-        if (difference.magnitude > -0.1)
-        {
-            Debug.Log("FrameOfInput: " + inputAtThatTime.timestamp + "Difference: " + difference.magnitude + "PredictedPosition: " + predictedPosition + "RealPosition: " + m_Position.Value);
-        }   
+        Vector2 difference = m_Position.Value - predictedPosition;  
 
         return difference.magnitude > 0.1;
     }
@@ -305,7 +295,6 @@ public class Player : NetworkBehaviour
 
             numberOfFrameStunned--;
             
-            Debug.Log("Corrected position: " + newInput.position);
         }
 
         m_InputHistory = correctedInputHistory;
